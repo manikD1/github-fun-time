@@ -370,6 +370,77 @@ It may print both a username and a `password=` value containing the secret token
 
 For identifying the account, prefer the API command in the previous section because it prints only the GitHub login.
 
+## Exactly what credentials should be entered?
+
+The answer depends on where the login prompt appears.
+
+| Where the prompt appears | Username | Password/verification |
+|---|---|---|
+| **GitHub.com in a browser** | GitHub username or account email | Normal GitHub password, passkey, and/or 2FA as requested |
+| **Terminal during Git HTTPS authentication** | GitHub username | A **personal access token (PAT)** in the password field—not the normal account password |
+| **Browser window opened by Git Credential Manager** | Sign in to the intended GitHub account | Complete the normal browser login and 2FA flow; GCM manages the Git credential |
+| **SSH remote** | Normally no GitHub username/password prompt | The configured SSH key authenticates the connection |
+
+### If Terminal asks for a username and password
+
+For the `osxkeychain` HTTPS setup described in this guide, enter the desired GitHub username and use a personal access token as the password.
+
+For `manikD1`:
+
+```text
+Username for 'https://github.com': manikD1
+Password for 'https://manikD1@github.com': [paste a token created under manikD1]
+```
+
+For `manikdixit23`:
+
+```text
+Username for 'https://github.com': manikdixit23
+Password for 'https://manikdixit23@github.com': [paste a token created under manikdixit23]
+```
+
+Although the prompt says `Password`, do **not** enter the normal GitHub account password. GitHub removed password-based authentication for command-line Git operations over HTTPS. Enter the personal access token in that field instead. See GitHub's official guide: [About authentication to GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github).
+
+When a token is pasted into a password prompt, Terminal normally displays no characters—not even dots or asterisks. This is expected. Paste it once and press Return.
+
+### The token determines the authenticated account
+
+The token must be created while signed in to the account that should perform the Git operation:
+
+```text
+Token created under manikD1       → authenticates as manikD1
+Token created under manikdixit23 → authenticates as manikdixit23
+```
+
+Typing `manikD1` as the username while supplying a token owned by `manikdixit23` does not convert that token into a `manikD1` credential. The token's owner remains authoritative. After saving a new credential, use the safe GitHub API command earlier in this guide to verify the account GitHub actually recognizes.
+
+### Creating a personal access token
+
+While logged in to the intended GitHub account in a browser:
+
+1. Open **GitHub → Settings**.
+2. Open **Developer settings**.
+3. Open **Personal access tokens**.
+4. Prefer a fine-grained token where it supports the intended use.
+5. Limit the token to only the necessary repositories and permissions.
+6. Give it an expiration date appropriate for the task.
+7. Copy the token when GitHub displays it; GitHub may not show it again.
+8. Paste it only into the Terminal password prompt when Git requests it.
+
+For ordinary Git access, the selected repository must be included. Fetching private content requires read access, while pushing changes requires suitable write access. Organization policies may require approval or additional authorization. Follow GitHub's current instructions when choosing permissions: [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+> **Never put a token in a command, repository URL, Markdown note, screenshot, chat message, issue, or commit.** Do not use the token as the password on the ordinary GitHub.com website login page. Paste it only when a Git HTTPS password prompt or another trusted GitHub tool explicitly asks for a token.
+
+### If a browser authentication window opens instead
+
+Git Credential Manager can open a browser and ask you to sign in to GitHub. In that browser window, use the intended account's normal web-login method and complete 2FA if requested. GCM then obtains and stores the Git credential; you generally do not need to create or paste a PAT manually. GitHub documents this approach in [Caching your GitHub credentials in Git](https://docs.github.com/en/get-started/git-basics/caching-your-github-credentials-in-git).
+
+This browser flow is separate from the manual `git-credential-osxkeychain` PAT flow. Check the configured helper with:
+
+```bash
+git config --show-origin --get-all credential.helper
+```
+
 ## Change the HTTPS authentication account
 
 Changing HTTPS authentication is normally a two-stage process:
@@ -624,4 +695,3 @@ HTTPS token or SSH key      = authentication and repository access
 ```
 
 When something looks wrong, first decide which of those three identities is responsible. That one distinction prevents most GitHub account confusion on macOS.
-
