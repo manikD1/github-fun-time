@@ -22,11 +22,11 @@ const comboEl = document.getElementById("combo");
 const glow = document.getElementById("glow");
 const badge = document.getElementById("badge-label");
 const hint = document.getElementById("hint");
-const heatCanvas = document.getElementById("heat");
+const matrixCanvas = document.getElementById("matrix");
 const rainCanvas = document.getElementById("rain");
 const fxCanvas = document.getElementById("fx");
 const walkerCanvas = document.getElementById("walker");
-const heat = heatCanvas.getContext("2d");
+const matrix = matrixCanvas.getContext("2d");
 const rainCtx = rainCanvas.getContext("2d");
 const fx = fxCanvas.getContext("2d");
 const walkerCtx = walkerCanvas.getContext("2d");
@@ -41,6 +41,9 @@ let comboTimer = 0;
 let partyUntil = 0;
 let scrambleUntil = 0;
 let audioCtx;
+let matrixBoostUntil = 0;
+const MATRIX_FONT = 17;
+const matrixDrops = [];
 
 const mouse = { x: innerWidth / 2, y: innerHeight * 0.38 };
 const glowPos = { x: mouse.x, y: mouse.y };
@@ -78,18 +81,19 @@ function hitsUmbrella(x, y) {
 }
 
 function resize() {
-  for (const canvas of [heatCanvas, rainCanvas, fxCanvas, walkerCanvas]) {
+  for (const canvas of [matrixCanvas, rainCanvas, fxCanvas, walkerCanvas]) {
     canvas.width = innerWidth * devicePixelRatio;
     canvas.height = innerHeight * devicePixelRatio;
     canvas.style.width = `${innerWidth}px`;
     canvas.style.height = `${innerHeight}px`;
   }
-  heat.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  matrix.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   rainCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   fx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   walkerCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   rainMan.x = Math.min(Math.max(40, rainMan.x), Math.max(40, innerWidth - 40));
   seedRain();
+  seedMatrix();
 }
 
 function rand(min, max) {
@@ -348,6 +352,66 @@ function drawRainMan(now) {
   }
 }
 
+function seedMatrix() {
+  matrixDrops.length = 0;
+  const cols = Math.max(1, Math.ceil(innerWidth / MATRIX_FONT));
+  for (let i = 0; i < cols; i += 1) {
+    matrixDrops.push({
+      y: rand(-40, innerHeight / MATRIX_FONT),
+      speed: rand(0.7, 1.85),
+    });
+  }
+  matrix.fillStyle = "#010805";
+  matrix.fillRect(0, 0, innerWidth, innerHeight);
+
+  if (!reduceMotion) return;
+  matrix.font = `600 ${MATRIX_FONT}px "IBM Plex Mono", ui-monospace, monospace`;
+  matrix.textAlign = "center";
+  for (let i = 0; i < cols; i += 1) {
+    for (let row = 0; row < innerHeight / MATRIX_FONT + 1; row += 1) {
+      if (Math.random() > 0.22) continue;
+      matrix.fillStyle = `rgba(0, 255, 65, ${rand(0.08, 0.28)})`;
+      matrix.fillText(Math.random() > 0.5 ? "1" : "0", i * MATRIX_FONT + MATRIX_FONT / 2, row * MATRIX_FONT);
+    }
+  }
+}
+
+function surgeMatrix() {
+  matrixBoostUntil = performance.now() + 900;
+  for (const drop of matrixDrops) drop.speed = rand(1.7, 3.1);
+}
+
+function drawMatrix(now) {
+  if (reduceMotion) return;
+
+  const boost = now < matrixBoostUntil;
+  matrix.fillStyle = boost ? "rgba(1, 12, 4, 0.07)" : "rgba(1, 8, 5, 0.13)";
+  matrix.fillRect(0, 0, innerWidth, innerHeight);
+  matrix.font = `600 ${MATRIX_FONT}px "IBM Plex Mono", ui-monospace, monospace`;
+  matrix.textAlign = "center";
+
+  for (let i = 0; i < matrixDrops.length; i += 1) {
+    const drop = matrixDrops[i];
+    const x = i * MATRIX_FONT + MATRIX_FONT / 2;
+    const y = drop.y * MATRIX_FONT;
+    const head = Math.random() > 0.5 ? "1" : "0";
+    const tail = Math.random() > 0.5 ? "1" : "0";
+
+    matrix.fillStyle = boost ? "#f3fff6" : "#c8ffd4";
+    matrix.fillText(head, x, y);
+    matrix.fillStyle = "rgba(0, 255, 65, 0.5)";
+    matrix.fillText(tail, x, y - MATRIX_FONT);
+    matrix.fillStyle = "rgba(0, 180, 50, 0.22)";
+    matrix.fillText(Math.random() > 0.5 ? "1" : "0", x, y - MATRIX_FONT * 2);
+
+    drop.y += boost ? drop.speed * 1.85 : drop.speed;
+    if (y > innerHeight && Math.random() > 0.965) {
+      drop.y = rand(-24, 0);
+      drop.speed = rand(0.7, 1.85);
+    }
+  }
+}
+
 function burst(count = 42, el = button) {
   const { x, y } = buttonOrigin(el);
   const party = document.body.classList.contains("party");
@@ -370,40 +434,6 @@ function burst(count = 42, el = button) {
       rot: rand(0, Math.PI),
     });
   }
-}
-
-function lightHeatmap() {
-  const cols = Math.ceil(innerWidth / 16);
-  const rows = Math.ceil(innerHeight / 16);
-  heat.globalAlpha = 0.9;
-  for (let i = 0; i < 40; i += 1) {
-    const c = Math.floor(rand(0, cols));
-    const r = Math.floor(rand(0, rows));
-    heat.fillStyle = pick(GREENS);
-    heat.fillRect(c * 16 + 2, r * 16 + 2, 11, 11);
-  }
-  heat.globalAlpha = 1;
-}
-
-function drawHeatmap() {
-  const size = 13;
-  const gap = 4;
-  const cell = size + gap;
-  const cols = Math.ceil(innerWidth / cell) + 1;
-  const rows = Math.ceil(innerHeight / cell) + 1;
-
-  heat.clearRect(0, 0, innerWidth, innerHeight);
-  for (let r = 0; r < rows; r += 1) {
-    for (let c = 0; c < cols; c += 1) {
-      const n = Math.sin(c * 0.35 + r * 0.2) * 0.5 + 0.5;
-      const idle = n * 0.18;
-      if (idle < 0.04) continue;
-      heat.fillStyle = GREENS[Math.min(3, Math.floor(n * 4))];
-      heat.globalAlpha = idle;
-      heat.fillRect(c * cell, r * cell, size, size);
-    }
-  }
-  heat.globalAlpha = 1;
 }
 
 function ping(comboCount) {
@@ -465,7 +495,7 @@ function celebrate() {
 
   if (!reduceMotion) {
     burst(36 + Math.min(combo, 8) * 8);
-    lightHeatmap();
+    surgeMatrix();
   }
 
   logCommit();
@@ -531,7 +561,7 @@ function pullRemote() {
         rot: rand(0, Math.PI),
       });
     }
-    lightHeatmap();
+    surgeMatrix();
   }
 
   logCommit("pull: fast-forwarded the vibes");
@@ -588,6 +618,7 @@ function tick(now) {
   glow.style.left = `${glowPos.x}px`;
   glow.style.top = `${glowPos.y}px`;
 
+  drawMatrix(now);
   updateRainMan(now);
   drawRain();
   drawRainMan(now);
@@ -596,7 +627,6 @@ function tick(now) {
 }
 
 resize();
-drawHeatmap();
 rainMan.nextTurn = performance.now() + 2800;
 requestAnimationFrame(tick);
 
@@ -605,7 +635,6 @@ pushBtn.addEventListener("click", pushRemote);
 pullBtn.addEventListener("click", pullRemote);
 window.addEventListener("resize", () => {
   resize();
-  drawHeatmap();
 });
 window.addEventListener("pointermove", (event) => {
   mouse.x = event.clientX;
