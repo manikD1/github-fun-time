@@ -15,6 +15,8 @@ const COMMITS = [
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const titleEl = document.getElementById("title");
 const button = document.getElementById("fun-btn");
+const pushBtn = document.getElementById("push-btn");
+const pullBtn = document.getElementById("pull-btn");
 const terminal = document.getElementById("terminal");
 const comboEl = document.getElementById("combo");
 const glow = document.getElementById("glow");
@@ -108,8 +110,8 @@ function scrambleTitle() {
   ).join("");
 }
 
-function buttonOrigin() {
-  const box = button.getBoundingClientRect();
+function buttonOrigin(el = button) {
+  const box = el.getBoundingClientRect();
   return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
 }
 
@@ -346,8 +348,8 @@ function drawRainMan(now) {
   }
 }
 
-function burst(count = 42) {
-  const { x, y } = buttonOrigin();
+function burst(count = 42, el = button) {
+  const { x, y } = buttonOrigin(el);
   const party = document.body.classList.contains("party");
 
   for (let i = 0; i < count; i += 1) {
@@ -427,9 +429,8 @@ function ping(comboCount) {
   osc.stop(now + 0.24);
 }
 
-function logCommit() {
+function logCommit(message = pick(COMMITS)) {
   const sha = shortSha();
-  const message = pick(COMMITS);
   logLines.unshift({ sha, message });
   if (logLines.length > 4) logLines.pop();
 
@@ -455,9 +456,7 @@ function celebrate() {
   }
 
   scrambleUntil = now + 420;
-  button.classList.remove("pop");
-  void button.offsetWidth;
-  button.classList.add("pop");
+  popButton(button);
 
   badge.textContent = combo >= 5 ? "force push unlocked" : `${commits} commit${commits === 1 ? "" : "s"} shipped`;
   hint.textContent = combo >= 3 ? "keep clicking · combo rising" : "commit · push · smile";
@@ -471,6 +470,72 @@ function celebrate() {
 
   logCommit();
   ping(combo);
+}
+
+function popButton(el) {
+  el.classList.remove("pop");
+  void el.offsetWidth;
+  el.classList.add("pop");
+}
+
+function pushRemote() {
+  scrambleUntil = performance.now() + 320;
+  popButton(pushBtn);
+  badge.textContent = "pushed to origin";
+  hint.textContent = "origin is up to date";
+  if (!reduceMotion) burst(52, pushBtn);
+  logCommit("push: shipped the vibes to origin");
+  ping(3);
+}
+
+function pullRemote() {
+  scrambleUntil = performance.now() + 320;
+  popButton(pullBtn);
+  badge.textContent = "pulled from origin";
+  hint.textContent = "fast-forward · already up to date";
+
+  if (!reduceMotion) {
+    const { x, y } = buttonOrigin(pullBtn);
+    for (let i = 0; i < 40; i += 1) {
+      const side = Math.floor(rand(0, 4));
+      let sx;
+      let sy;
+      if (side === 0) {
+        sx = rand(0, innerWidth);
+        sy = -12;
+      } else if (side === 1) {
+        sx = innerWidth + 12;
+        sy = rand(0, innerHeight);
+      } else if (side === 2) {
+        sx = rand(0, innerWidth);
+        sy = innerHeight + 12;
+      } else {
+        sx = -12;
+        sy = rand(0, innerHeight);
+      }
+      const dx = x - sx;
+      const dy = y - sy;
+      const dist = Math.hypot(dx, dy) || 1;
+      particles.push({
+        x: sx,
+        y: sy,
+        vx: (dx / dist) * rand(5, 10),
+        vy: (dy / dist) * rand(5, 10),
+        size: rand(5, 12),
+        life: 1,
+        decay: rand(0.01, 0.02),
+        color: pick(["#58a6ff", "#39d353", "#79c0ff"]),
+        kind: Math.random() > 0.7 ? "glyph" : "square",
+        glyph: pick(["↓", "fetch", "*"]),
+        spin: rand(-0.18, 0.18),
+        rot: rand(0, Math.PI),
+      });
+    }
+    lightHeatmap();
+  }
+
+  logCommit("pull: fast-forwarded the vibes");
+  ping(2);
 }
 
 function drawParticles() {
@@ -536,6 +601,8 @@ rainMan.nextTurn = performance.now() + 2800;
 requestAnimationFrame(tick);
 
 button.addEventListener("click", celebrate);
+pushBtn.addEventListener("click", pushRemote);
+pullBtn.addEventListener("click", pullRemote);
 window.addEventListener("resize", () => {
   resize();
   drawHeatmap();

@@ -137,6 +137,14 @@ h1 {
     font-size: 1.15rem;
 }
 
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+}
+
 button {
     appearance: none;
     border: 0;
@@ -165,6 +173,21 @@ button:hover {
 
 button:active {
     transform: translateY(0);
+}
+
+button.ghost {
+    background: rgba(22, 27, 34, 0.88);
+    color: var(--text);
+    box-shadow:
+        0 0 0 1px var(--border) inset,
+        0 8px 22px rgba(1, 4, 9, 0.28);
+}
+
+button.ghost:hover {
+    filter: brightness(1.08);
+    box-shadow:
+        0 0 0 1px #8b949e inset,
+        0 12px 28px rgba(1, 4, 9, 0.35);
 }
 
 .hint {
@@ -284,8 +307,13 @@ body.party h1 {
         font-size: 1rem;
     }
 
-    button {
+    .actions {
         width: min(100%, 280px);
+        flex-direction: column;
+    }
+
+    button {
+        width: 100%;
     }
 
     .terminal {
