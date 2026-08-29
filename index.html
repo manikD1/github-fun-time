@@ -12,19 +12,25 @@
 </head>
 
 <body>
+    <canvas id="heat" class="heat" aria-hidden="true"></canvas>
     <div class="bg-grid" aria-hidden="true"></div>
-    <div class="bg-glow" aria-hidden="true"></div>
+    <div class="bg-glow" id="glow" aria-hidden="true"></div>
+    <canvas id="fx" class="fx" aria-hidden="true"></canvas>
 
     <main>
         <p class="badge">
             <span class="dot"></span>
-            live on git
+            <span id="badge-label">live on git</span>
         </p>
-        <h1>GitHub Fun Time</h1>
-        <p class="lede">This is a fun time with GitHub</p>
-        <button type="button">Fun Time</button>
-        <p class="hint">commit · push · smile</p>
+        <h1 id="title">GitHub Fun Time</h1>
+        <p class="lede" id="lede">This is a fun time with GitHub</p>
+        <button type="button" id="fun-btn">Fun Time</button>
+        <p class="hint" id="hint">commit · push · smile</p>
+        <p class="combo" id="combo" hidden></p>
     </main>
+
+    <div class="terminal" id="terminal" aria-live="polite"></div>
+    <script src="app.js" defer></script>
 </body>
 
 </html>
