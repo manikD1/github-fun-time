@@ -39,7 +39,8 @@ body {
 
 .heat,
 .rain,
-.fx {
+.fx,
+.walker {
     position: fixed;
     inset: 0;
     width: 100%;
@@ -58,6 +59,10 @@ body {
 
 .fx {
     z-index: 3;
+}
+
+.walker {
+    z-index: 6;
 }
 
 .bg-glow {
@@ -192,10 +197,21 @@ button:active {
     text-transform: uppercase;
 }
 
+.ground {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    height: 92px;
+    pointer-events: none;
+    background: linear-gradient(transparent, rgba(1, 4, 9, 0.78));
+}
+
 .terminal {
     position: fixed;
     left: 50%;
-    bottom: 24px;
+    bottom: 100px;
     z-index: 5;
     width: min(520px, calc(100% - 32px));
     transform: translateX(-50%);
@@ -273,7 +289,7 @@ body.party h1 {
     }
 
     .terminal {
-        bottom: 12px;
+        bottom: 88px;
         font-size: 11px;
     }
 }
