@@ -23,9 +23,11 @@ const hint = document.getElementById("hint");
 const heatCanvas = document.getElementById("heat");
 const rainCanvas = document.getElementById("rain");
 const fxCanvas = document.getElementById("fx");
+const walkerCanvas = document.getElementById("walker");
 const heat = heatCanvas.getContext("2d");
 const rainCtx = rainCanvas.getContext("2d");
 const fx = fxCanvas.getContext("2d");
+const walkerCtx = walkerCanvas.getContext("2d");
 
 const particles = [];
 const raindrops = [];
@@ -40,9 +42,41 @@ let audioCtx;
 
 const mouse = { x: innerWidth / 2, y: innerHeight * 0.38 };
 const glowPos = { x: mouse.x, y: mouse.y };
+const rainMan = {
+  x: 120,
+  dir: 1,
+  phase: 0,
+  panicUntil: 0,
+  nextTurn: 0,
+};
+
+function manGround() {
+  return innerHeight - 8;
+}
+
+function manBob() {
+  return reduceMotion ? 0 : Math.abs(Math.sin(rainMan.phase)) * 2.4;
+}
+
+function umbrellaHitbox() {
+  const bob = manBob();
+  return {
+    x: rainMan.x + rainMan.dir * 10,
+    y: manGround() - bob - 58,
+    rx: 27,
+    ry: 13,
+  };
+}
+
+function hitsUmbrella(x, y) {
+  const u = umbrellaHitbox();
+  const dx = (x - u.x) / u.rx;
+  const dy = (y - u.y) / u.ry;
+  return dx * dx + dy * dy <= 1 && y <= u.y + 6;
+}
 
 function resize() {
-  for (const canvas of [heatCanvas, rainCanvas, fxCanvas]) {
+  for (const canvas of [heatCanvas, rainCanvas, fxCanvas, walkerCanvas]) {
     canvas.width = innerWidth * devicePixelRatio;
     canvas.height = innerHeight * devicePixelRatio;
     canvas.style.width = `${innerWidth}px`;
@@ -51,6 +85,8 @@ function resize() {
   heat.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   rainCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   fx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  walkerCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  rainMan.x = Math.min(Math.max(40, rainMan.x), Math.max(40, innerWidth - 40));
   seedRain();
 }
 
@@ -115,6 +151,21 @@ function drawRain() {
     rainCtx.beginPath();
     rainCtx.moveTo(drop.x, drop.y);
     rainCtx.lineTo(drop.x - drop.drift * 2.4, drop.y + drop.len);
+
+    const tipX = drop.x - drop.drift * 2.4;
+    const tipY = drop.y + drop.len;
+    if (hitsUmbrella(tipX, tipY) || hitsUmbrella(drop.x, drop.y)) {
+      splashes.push({
+        x: tipX,
+        y: Math.min(tipY, umbrellaHitbox().y + 4),
+        life: 1,
+        r: rand(1.2, 3.4),
+        canopy: true,
+      });
+      Object.assign(drop, makeDrop(false));
+      continue;
+    }
+
     rainCtx.stroke();
 
     if (drop.y > innerHeight) {
@@ -140,11 +191,158 @@ function drawRain() {
       splashes.splice(i, 1);
       continue;
     }
+    if (splash.canopy) continue;
     rainCtx.strokeStyle = `rgba(139, 233, 253, ${splash.life * 0.32})`;
     rainCtx.lineWidth = 1;
     rainCtx.beginPath();
     rainCtx.ellipse(splash.x, splash.y, splash.r, splash.r * 0.32, 0, 0, Math.PI * 2);
     rainCtx.stroke();
+  }
+}
+
+function updateRainMan(now) {
+  const margin = 38;
+
+  if (!reduceMotion) {
+    for (const drop of raindrops) {
+      if (now < rainMan.panicUntil) break;
+      const near = Math.abs(drop.x - rainMan.x) < 46;
+      const incoming = drop.y > innerHeight - 120 && drop.y < innerHeight - 36;
+      if (near && incoming && !hitsUmbrella(drop.x, drop.y + drop.len)) {
+        rainMan.dir = drop.x > rainMan.x ? -1 : 1;
+        rainMan.panicUntil = now + 780;
+        rainMan.nextTurn = now + rand(1600, 3800);
+        break;
+      }
+    }
+
+    if (now > rainMan.nextTurn) {
+      rainMan.dir *= -1;
+      rainMan.nextTurn = now + rand(2400, 5600);
+    }
+
+    const panic = now < rainMan.panicUntil;
+    const speed = panic ? 3.5 : 1.55;
+    rainMan.x += rainMan.dir * speed;
+    rainMan.phase += panic ? 0.3 : 0.15;
+  }
+
+  if (rainMan.x > innerWidth - margin) {
+    rainMan.x = innerWidth - margin;
+    rainMan.dir = -1;
+  } else if (rainMan.x < margin) {
+    rainMan.x = margin;
+    rainMan.dir = 1;
+  }
+}
+
+function drawRainMan(now) {
+  const ctx = walkerCtx;
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  const panic = now < rainMan.panicUntil;
+  const bob = manBob();
+  const ground = manGround();
+  const lean = rainMan.dir * (panic ? 0.16 : 0.06);
+  const swing = reduceMotion ? 0 : Math.sin(rainMan.phase);
+
+  ctx.save();
+  ctx.translate(rainMan.x, ground - bob);
+  ctx.scale(rainMan.dir, 1);
+  ctx.rotate(lean);
+
+  ctx.fillStyle = "rgba(88, 166, 255, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(0, 3, 18, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#6e7681";
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-2, -17);
+  ctx.lineTo(-7 + swing * 5, -1);
+  ctx.moveTo(3, -17);
+  ctx.lineTo(7 - swing * 5, -1);
+  ctx.stroke();
+
+  ctx.fillStyle = "#1f2328";
+  ctx.beginPath();
+  ctx.ellipse(-7 + swing * 5, 0, 4.2, 1.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(7 - swing * 5, 0, 4.2, 1.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = panic ? "#f0c674" : "#e3b341";
+  ctx.beginPath();
+  ctx.moveTo(-11, -18);
+  ctx.lineTo(11, -18);
+  ctx.lineTo(13, -36);
+  ctx.lineTo(-9, -36);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#e3b341";
+  ctx.beginPath();
+  ctx.ellipse(1, -42, 7.2, 7.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f0d5b0";
+  ctx.beginPath();
+  ctx.arc(2, -41, 5.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#161b22";
+  ctx.beginPath();
+  ctx.arc(4.2, -42, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#8b949e";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(6, -28);
+  ctx.quadraticCurveTo(14, -34, 10, -56);
+  ctx.stroke();
+
+  ctx.fillStyle = "#238636";
+  ctx.beginPath();
+  ctx.moveTo(-16, -56);
+  for (let i = 0; i < 5; i += 1) {
+    const x0 = -16 + i * 8.4;
+    ctx.quadraticCurveTo(x0 + 4.2, -47, x0 + 8.4, -56);
+  }
+  ctx.quadraticCurveTo(10, -70, -16, -56);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(63, 185, 80, 0.9)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-16, -56);
+  ctx.quadraticCurveTo(10, -70, 26, -56);
+  ctx.stroke();
+
+  ctx.fillStyle = "#2ea043";
+  ctx.beginPath();
+  ctx.arc(10, -56, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (panic) {
+    ctx.strokeStyle = "rgba(139, 233, 253, 0.55)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-22, -48);
+    ctx.lineTo(-30, -52);
+    ctx.moveTo(-22, -38);
+    ctx.lineTo(-31, -38);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  for (const splash of splashes) {
+    if (!splash.canopy) continue;
+    ctx.strokeStyle = `rgba(139, 233, 253, ${splash.life * 0.45})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(splash.x, splash.y, splash.r, splash.r * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
   }
 }
 
@@ -325,13 +523,16 @@ function tick(now) {
   glow.style.left = `${glowPos.x}px`;
   glow.style.top = `${glowPos.y}px`;
 
+  updateRainMan(now);
   drawRain();
+  drawRainMan(now);
   drawParticles();
   requestAnimationFrame(tick);
 }
 
 resize();
 drawHeatmap();
+rainMan.nextTurn = performance.now() + 2800;
 requestAnimationFrame(tick);
 
 button.addEventListener("click", celebrate);
