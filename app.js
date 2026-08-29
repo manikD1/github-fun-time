@@ -21,11 +21,15 @@ const glow = document.getElementById("glow");
 const badge = document.getElementById("badge-label");
 const hint = document.getElementById("hint");
 const heatCanvas = document.getElementById("heat");
+const rainCanvas = document.getElementById("rain");
 const fxCanvas = document.getElementById("fx");
 const heat = heatCanvas.getContext("2d");
+const rainCtx = rainCanvas.getContext("2d");
 const fx = fxCanvas.getContext("2d");
 
 const particles = [];
+const raindrops = [];
+const splashes = [];
 const logLines = [];
 let commits = 0;
 let combo = 0;
@@ -38,14 +42,16 @@ const mouse = { x: innerWidth / 2, y: innerHeight * 0.38 };
 const glowPos = { x: mouse.x, y: mouse.y };
 
 function resize() {
-  for (const canvas of [heatCanvas, fxCanvas]) {
+  for (const canvas of [heatCanvas, rainCanvas, fxCanvas]) {
     canvas.width = innerWidth * devicePixelRatio;
     canvas.height = innerHeight * devicePixelRatio;
     canvas.style.width = `${innerWidth}px`;
     canvas.style.height = `${innerHeight}px`;
   }
   heat.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  rainCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   fx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  seedRain();
 }
 
 function rand(min, max) {
@@ -69,6 +75,77 @@ function scrambleTitle() {
 function buttonOrigin() {
   const box = button.getBoundingClientRect();
   return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+}
+
+function rainCount() {
+  return Math.round(Math.min(280, Math.max(90, (innerWidth * innerHeight) / 6800)));
+}
+
+function makeDrop(anywhere) {
+  return {
+    x: rand(-30, innerWidth + 30),
+    y: anywhere ? rand(-innerHeight, innerHeight) : rand(-80, -8),
+    len: rand(10, 22),
+    speed: rand(10, 18),
+    drift: rand(0.6, 1.8),
+    alpha: rand(0.14, 0.5),
+    thick: rand(0.9, 1.7),
+  };
+}
+
+function seedRain() {
+  raindrops.length = 0;
+  splashes.length = 0;
+  if (reduceMotion) return;
+  const n = rainCount();
+  for (let i = 0; i < n; i += 1) raindrops.push(makeDrop(true));
+}
+
+function drawRain() {
+  rainCtx.clearRect(0, 0, innerWidth, innerHeight);
+  if (reduceMotion) return;
+
+  rainCtx.lineCap = "round";
+  for (const drop of raindrops) {
+    drop.x += drop.drift;
+    drop.y += drop.speed;
+
+    rainCtx.strokeStyle = `rgba(88, 166, 255, ${drop.alpha})`;
+    rainCtx.lineWidth = drop.thick;
+    rainCtx.beginPath();
+    rainCtx.moveTo(drop.x, drop.y);
+    rainCtx.lineTo(drop.x - drop.drift * 2.4, drop.y + drop.len);
+    rainCtx.stroke();
+
+    if (drop.y > innerHeight) {
+      if (Math.random() > 0.45) {
+        splashes.push({
+          x: drop.x,
+          y: innerHeight - 2,
+          life: 1,
+          r: rand(1.5, 4.5),
+        });
+      }
+      Object.assign(drop, makeDrop(false));
+    } else if (drop.x > innerWidth + 40) {
+      drop.x = -20;
+    }
+  }
+
+  for (let i = splashes.length - 1; i >= 0; i -= 1) {
+    const splash = splashes[i];
+    splash.life -= 0.045;
+    splash.r += 0.7;
+    if (splash.life <= 0) {
+      splashes.splice(i, 1);
+      continue;
+    }
+    rainCtx.strokeStyle = `rgba(139, 233, 253, ${splash.life * 0.32})`;
+    rainCtx.lineWidth = 1;
+    rainCtx.beginPath();
+    rainCtx.ellipse(splash.x, splash.y, splash.r, splash.r * 0.32, 0, 0, Math.PI * 2);
+    rainCtx.stroke();
+  }
 }
 
 function burst(count = 42) {
@@ -248,6 +325,7 @@ function tick(now) {
   glow.style.left = `${glowPos.x}px`;
   glow.style.top = `${glowPos.y}px`;
 
+  drawRain();
   drawParticles();
   requestAnimationFrame(tick);
 }
